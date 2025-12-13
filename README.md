@@ -1,4 +1,4 @@
-# Multi-Game Card Tracker (Ultimate Edition)
+# Multi-Game Card Tracker
 
 A powerful Python script to track the value of your **Magic: The Gathering** and **Yu-Gi-Oh!** collections.
 
