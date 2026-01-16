@@ -28,6 +28,23 @@
             .badge { position: absolute; top: 10px; right: 10px; padding: 5px 10px; border-radius: 15px; color: white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
             .badge-MTG { background-color: #f39c12; }
             .badge-YGO { background-color: #8e44ad; }
+
+            /* Holo-foil Effect */
+            .card-container { perspective: 1000px; transform-style: preserve-3d; }
+            .card.foil::after {
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                border-radius: 10px; /* Matched card border radius */
+                background: linear-gradient(105deg, transparent 20%, rgba(255, 219, 112, 0.4) 40%, rgba(255, 255, 255, 0.6) 50%, rgba(112, 193, 255, 0.4) 60%, transparent 80%);
+                mix-blend-mode: color-dodge;
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+                background-position: var(--foil-x, 0%) var(--foil-y, 0%);
+                background-size: 200% 200%;
+            }
+            .card.foil:hover::after { opacity: 1; }
         </style>
     </head>
     <body>
@@ -35,11 +52,11 @@
             <div class="header">
                 <div>
                     <h1>My Collection</h1>
-                    <p>Last Updated: 2025-12-13</p>
+                    <p>Last Updated: 2026-01-16</p>
                 </div>
                 <div class="stats">
-                    <div class="total-value">$2.68</div>
-                    <div class="profit-loss">P/L: $-5.39</div>
+                    <div class="total-value">$0.33</div>
+                    <div class="profit-loss">P/L: $-4.76</div>
                 </div>
             </div>
             
@@ -50,21 +67,6 @@
             
             <div class="grid">
     
-                <div class="card" onclick="window.open('https://scryfall.com/card/eoc/57/sol-ring?utm_source=api', '_blank')" style="cursor: pointer;">
-                    <span class="badge badge-MTG">MTG</span>
-                    <img src="https://cards.scryfall.io/normal/front/e/e/ee6e5a35-fe21-4dee-b0ef-a8f2841511ad.jpg?1764180059" class="card-img" alt="Sol Ring">
-                    <div class="card-info">
-                        <div class="card-name" title="Sol Ring">Sol Ring</div>
-                        <div class="card-set">Edge of Eternities Commander</div>
-                        <div class="card-price">
-                            $2.36
-                            <span class="trend-icon trend-up" title="Price went UP">▲</span>
-                            <span class="card-qty">x2</span>
-                        </div>
-                        <div class="card-pl pl-red">$-0.64</div>
-                    </div>
-                </div>
-        
                 <div class="card" onclick="window.open('https://db.ygoprodeck.com/card/?search=Dark%20Magician', '_blank')" style="cursor: pointer;">
                     <span class="badge badge-YGO">YGO</span>
                     <img src="https://images.ygoprodeck.com/images/cards/46986414.jpg" class="card-img" alt="Dark Magician">
@@ -72,11 +74,10 @@
                         <div class="card-name" title="Dark Magician">Dark Magician</div>
                         <div class="card-set">2016 Mega-Tins</div>
                         <div class="card-price">
-                            $0.25
-                            <span class="trend-icon trend-down" title="Price went DOWN">▼</span>
+                            $0.24
                             <span class="card-qty">x1</span>
                         </div>
-                        <div class="card-pl pl-red">$-4.75</div>
+                        <div class="card-pl pl-red">$-4.76</div>
                     </div>
                 </div>
         
@@ -87,8 +88,7 @@
                         <div class="card-name" title="Blue-Eyes White Dragon">Blue-Eyes White Dragon</div>
                         <div class="card-set">2016 Mega-Tins</div>
                         <div class="card-price">
-                            $0.07
-                            
+                            $0.09
                             <span class="card-qty">x1</span>
                         </div>
                         
@@ -103,22 +103,6 @@
                         <div class="card-set">Vintage Masters</div>
                         <div class="card-price">
                             $N/A
-                            
-                            <span class="card-qty">x1</span>
-                        </div>
-                        
-                    </div>
-                </div>
-        
-                <div class="card" onclick="window.open('https://scryfall.com/card/vma/7/mox-pearl?utm_source=api', '_blank')" style="cursor: pointer;">
-                    <span class="badge badge-MTG">MTG</span>
-                    <img src="https://cards.scryfall.io/normal/front/e/d/ed0216a0-c5c9-4a99-b869-53e4d0256326.jpg?1614638847" class="card-img" alt="Mox Pearl">
-                    <div class="card-info">
-                        <div class="card-name" title="Mox Pearl">Mox Pearl</div>
-                        <div class="card-set">Vintage Masters</div>
-                        <div class="card-price">
-                            $N/A
-                            
                             <span class="card-qty">x1</span>
                         </div>
                         
@@ -127,6 +111,26 @@
         
             </div>
         </div>
+        <script>
+            document.querySelectorAll('.card.foil').forEach(card => {
+              card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const xPercent = (x / rect.width) * 100;
+                const yPercent = (y / rect.height) * 100;
+                const rotateX = ((y / rect.height) - 0.5) * -20;
+                const rotateY = ((x / rect.width) - 0.5) * 20;
+
+                card.style.setProperty('--foil-x', `${xPercent}%`);
+                card.style.setProperty('--foil-y', `${yPercent}%`);
+                card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+              });
+              card.addEventListener('mouseleave', () => {
+                card.style.transform = 'rotateX(0) rotateY(0)';
+              });
+            });
+        </script>
     </body>
     </html>
     

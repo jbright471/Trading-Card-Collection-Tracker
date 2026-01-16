@@ -15,35 +15,6 @@ import matplotlib.dates as mdates
 # --- Configuration ---
 DISCORD_WEBHOOK_URL = "" 
 ALERT_THRESHOLD_PERCENT = 10.0 
-LAST_PRICES_FILE = 'last_run_prices.json'
-
-def load_last_prices():
-    try:
-        if os.path.exists(LAST_PRICES_FILE):
-            with open(LAST_PRICES_FILE, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"Error loading last prices: {e}")
-    return {}
-
-def save_last_prices(all_data):
-    prices = {}
-    for item in all_data:
-        # Create a unique key: Game|CardName
-        key = f"{item['data']['game']}|{item['data']['name']}"
-        # Store unit price if available
-        try:
-             # item['data']['price'] is a string like "12.50" or "N/A"
-             price_val = float(item['data']['price'])
-             prices[key] = price_val
-        except ValueError:
-            pass # Skip N/A or invalid prices
-    
-    try:
-        with open(LAST_PRICES_FILE, 'w') as f:
-            json.dump(prices, f, indent=2)
-    except Exception as e:
-        print(f"Error saving last prices: {e}")
 
 def clean_txt(file_path):
     if not os.path.exists(file_path):
@@ -315,6 +286,23 @@ def generate_html_report(collected_data, total_value, total_profit_loss):
             .badge {{ position: absolute; top: 10px; right: 10px; padding: 5px 10px; border-radius: 15px; color: white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }}
             .badge-MTG {{ background-color: #f39c12; }}
             .badge-YGO {{ background-color: #8e44ad; }}
+
+            /* Holo-foil Effect */
+            .card-container {{ perspective: 1000px; transform-style: preserve-3d; }}
+            .card.foil::after {{
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                border-radius: 10px; /* Matched card border radius */
+                background: linear-gradient(105deg, transparent 20%, rgba(255, 219, 112, 0.4) 40%, rgba(255, 255, 255, 0.6) 50%, rgba(112, 193, 255, 0.4) 60%, transparent 80%);
+                mix-blend-mode: color-dodge;
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+                background-position: var(--foil-x, 0%) var(--foil-y, 0%);
+                background-size: 200% 200%;
+            }}
+            .card.foil:hover::after {{ opacity: 1; }}
         </style>
     </head>
     <body>
@@ -353,8 +341,9 @@ def generate_html_report(collected_data, total_value, total_profit_loss):
 
         img_src = data['image'] if data['image'] else "https://via.placeholder.com/250x350?text=No+Image"
         
+        foil_class = " foil" if item.get('is_foil', False) else ""
         html += f"""
-                <div class="card" onclick="window.open('{data['uri']}', '_blank')" style="cursor: pointer;">
+                <div class="card{foil_class}" onclick="window.open('{data['uri']}', '_blank')" style="cursor: pointer;">
                     <span class="badge badge-{game}">{game}</span>
                     <img src="{img_src}" class="card-img" alt="{data['name']}">
                     <div class="card-info">
@@ -362,7 +351,6 @@ def generate_html_report(collected_data, total_value, total_profit_loss):
                         <div class="card-set">{data['set']}</div>
                         <div class="card-price">
                             ${price_str}
-                            {item.get('trend_html', '')}
                             <span class="card-qty">x{qty}</span>
                         </div>
                         {pl_html}
@@ -373,6 +361,26 @@ def generate_html_report(collected_data, total_value, total_profit_loss):
     html += """
             </div>
         </div>
+        <script>
+            document.querySelectorAll('.card.foil').forEach(card => {
+              card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const xPercent = (x / rect.width) * 100;
+                const yPercent = (y / rect.height) * 100;
+                const rotateX = ((y / rect.height) - 0.5) * -20;
+                const rotateY = ((x / rect.width) - 0.5) * 20;
+
+                card.style.setProperty('--foil-x', `${xPercent}%`);
+                card.style.setProperty('--foil-y', `${yPercent}%`);
+                card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+              });
+              card.addEventListener('mouseleave', () => {
+                card.style.transform = 'rotateX(0) rotateY(0)';
+              });
+            });
+        </script>
     </body>
     </html>
     """
@@ -411,6 +419,14 @@ def process_file(filename, fetch_func, game_name):
             quantity = int(qty_match.group(1))
             clean_card_line = qty_match.group(2).strip()
 
+        # Check for foil
+        is_foil = False
+        if '(foil)' in clean_card_line.lower():
+            is_foil = True
+            clean_card_line = re.sub(r'\s*\(foil\)', '', clean_card_line, flags=re.IGNORECASE).strip()
+            # Also clean up any double spaces that might have formed
+            clean_card_line = re.sub(r'\s+', ' ', clean_card_line)
+
         data = fetch_func(clean_card_line)
         if data:
             unit_price_str = data['price']
@@ -436,7 +452,8 @@ def process_file(filename, fetch_func, game_name):
                 'quantity': quantity,
                 'price_str': total_price_str,
                 'profit_loss': profit_loss,
-                'sort_val': sort_val
+                'sort_val': sort_val,
+                'is_foil': is_foil
             })
             print(f"[{game_name}] Fetched: {data['name']} - ${total_price_str}")
         else:
@@ -465,29 +482,6 @@ def main():
             
     # Sort by price
     all_data.sort(key=lambda x: x['sort_val'], reverse=True)
-
-    # NEW: Calculate trends
-    last_prices = load_last_prices()
-    for item in all_data:
-        key = f"{item['data']['game']}|{item['data']['name']}"
-        item['trend'] = 'same' # Default
-        item['trend_html'] = ''
-        
-        try:
-            current_price = float(item['data']['price'])
-            if key in last_prices:
-                last_price = last_prices[key]
-                if current_price > last_price:
-                    item['trend'] = 'up'
-                    item['trend_html'] = '<span class="trend-icon trend-up" title="Price went UP">▲</span>'
-                elif current_price < last_price:
-                    item['trend'] = 'down'
-                    item['trend_html'] = '<span class="trend-icon trend-down" title="Price went DOWN">▼</span>'
-                else:
-                    item['trend'] = 'same'
-                    # item['trend_html'] = '<span class="trend-icon trend-same" title="Price unchanged">-</span>'
-        except ValueError:
-            item['trend'] = None # No price data
 
     # 1. Update Excel
     try:
@@ -523,12 +517,8 @@ def main():
     # 2. Update History & Graph
     update_history_and_graph(total_collection_value)
     
-
     # 3. Generate HTML Report
     generate_html_report(all_data, total_collection_value, total_profit_loss)
-    
-    # 4. Save prices for next run
-    save_last_prices(all_data)
 
 if __name__ == "__main__":
     main()
