@@ -1,9 +1,2 @@
-# No external dependencies required
-# This script uses standard Python libraries:
-# - urllib
-# - json
-# - csv
-# - os
-# - re
-# - datetime
-# - time
+matplotlib
+openpyxl
