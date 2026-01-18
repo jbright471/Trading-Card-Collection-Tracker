@@ -48,6 +48,10 @@ To receive notifications on Discord:
 3.  Paste your Discord Webhook URL inside the quotes.
 
 ### 3. Run the Tracker
+**Option A: The Easy Way (Recommended)**
+Simply double-click the `Run Price Tracker.bat` file in the folder. A window will open, run your update, and stay open so you can read the results.
+
+**Option B: Command Line**
 Execute the script from your terminal:
 ```bash
 python price_tracker.py
@@ -61,6 +65,23 @@ python price_tracker.py
 | `MY_COLLECTION_PRICES.xlsx` | Detailed spreadsheet of your entire collection. |
 | `price_history.csv` | Raw data log of value over time (used for the graph). |
 | `history_graph.png` | The generated image of your value graph. |
+
+## ☁️ Pushing to GitHub
+To save your changes and card updates to the cloud, user the following commands in your terminal (or Command Prompt):
+
+```bash
+# 1. Check which files have changed
+git status
+
+# 2. Add all changes to the staging area
+git add .
+
+# 3. Commit the changes with a message (describe what you did)
+git commit -m "Update card list and prices"
+
+# 4. Push to GitHub
+git push
+```
 
 ## 🛠️ Built With
 This project uses the following robust APIs:
