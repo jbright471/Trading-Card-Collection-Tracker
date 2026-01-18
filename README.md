@@ -66,22 +66,6 @@ python price_tracker.py
 | `price_history.csv` | Raw data log of value over time (used for the graph). |
 | `history_graph.png` | The generated image of your value graph. |
 
-## ☁️ Pushing to GitHub
-To save your changes and card updates to the cloud, user the following commands in your terminal (or Command Prompt):
-
-```bash
-# 1. Check which files have changed
-git status
-
-# 2. Add all changes to the staging area
-git add .
-
-# 3. Commit the changes with a message (describe what you did)
-git commit -m "Update card list and prices"
-
-# 4. Push to GitHub
-git push
-```
 
 ## 🛠️ Built With
 This project uses the following robust APIs:
