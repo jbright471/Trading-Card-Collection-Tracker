@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Add Card · TCG Collection Tracker{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='add.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<section class="add-layout" id="addLayout">
+  <section class="search-pane">
+    <div class="search-controls">
+      <input id="searchInput" class="input search-input" type="search" placeholder="Search by card name, set, or ID" autocomplete="off">
+      <select id="searchGame" class="input">
+        <option value="MTG">Magic: The Gathering</option>
+        <option value="YGO">Yu-Gi-Oh!</option>
+        <option value="PKM">Pokemon</option>
+      </select>
+    </div>
+    <div id="searchResults" class="result-list">
+      <div class="empty-state compact">
+        <h3>Search for a card</h3>
+        <p>Choose a game, search, then tune condition, finish, price, and quantity before adding.</p>
+      </div>
+    </div>
+  </section>
+
+  <aside class="detail-pane" id="detailPane" aria-live="polite">
+    <button class="button button-secondary mobile-back" type="button" id="backToResults">Back to results</button>
+    <div id="selectedCard" class="selected-card empty">
+      <div class="preview-placeholder">Card Preview</div>
+    </div>
+    <form id="addForm" class="add-form" hidden>
+      <label>
+        Condition
+        <select class="input" id="conditionInput">
+          <option value="M">Mint (M)</option>
+          <option value="NM" selected>Near Mint (NM)</option>
+          <option value="LP">Lightly Played (LP)</option>
+          <option value="MP">Moderately Played (MP)</option>
+          <option value="HP">Heavily Played (HP)</option>
+          <option value="DMG">Damaged</option>
+        </select>
+      </label>
+      <fieldset class="finish-field">
+        <legend>Finish</legend>
+        <label><input type="radio" name="finish" value="regular" checked> Regular</label>
+        <label><input type="radio" name="finish" value="foil"> Foil</label>
+        <label><input type="radio" name="finish" value="etched"> Etched</label>
+      </fieldset>
+      <div class="form-grid">
+        <label>
+          Purchase Price ($)
+          <input class="input" id="buyPriceInput" type="number" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label>
+          Quantity
+          <input class="input" id="quantityInput" type="number" min="1" value="1">
+        </label>
+      </div>
+      <button class="button sticky-submit" type="submit" id="submitAdd">Add to Collection</button>
+    </form>
+  </aside>
+</section>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+{% endblock %}

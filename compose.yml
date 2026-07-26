@@ -1,0 +1,21 @@
+services:
+  tcg-tracker:
+    build: .
+    container_name: tcg-tracker
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      TCG_TRACKER_DATA_DIR: /data
+      REQUEST_DELAY: ${REQUEST_DELAY:-0.75}
+      SCRYFALL_MIN_INTERVAL_SECONDS: ${SCRYFALL_MIN_INTERVAL_SECONDS:-0.65}
+      HTTP_MAX_RETRIES: ${HTTP_MAX_RETRIES:-4}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8084/health', timeout=5).read()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

@@ -1,79 +1,140 @@
-# 🃏 Multi-Game Card Tracker
+# Multi TCG Tracker
 
-A powerful Python dashboard to track the value of your **Magic: The Gathering** and **Yu-Gi-Oh!** collections.
+A self-hosted collection and price tracker for Magic: The Gathering, Yu-Gi-Oh!, and Pokemon cards. It includes a responsive light/dark dashboard, card images, portfolio history, wishlist targets, and a searchable add-card workflow.
 
-Combine your TCG hobbies into one sleek report. This tool pulls real-time data to track prices, visualize trends, and calculate your total portfolio value.
+## Features
 
-## ✨ Features
+- Track MTG, Yu-Gi-Oh!, and Pokemon cards in one collection.
+- View collection value, profit/loss, data freshness, and price history.
+- Browse a responsive card gallery with card art, set, finish, condition, quantity, and value.
+- Search supported card databases and add cards from the web interface.
+- Watch wishlist targets with current prices, card images, and deal indicators.
+- Refresh from the dashboard with API pacing, retry, and rate-limit backoff.
+- Keep last-known values when individual lookups fail.
+- Skip bad history snapshots when too many lookups fail.
+- Generate an Excel export and a standalone HTML report.
+- Track per-card history, daily movers, gainers, and losers.
+- Send optional Discord value and wishlist deal alerts.
+- Run locally, with Docker Compose, or as a Portainer stack.
 
-*   **Two Games, One Tracker**: Seamlessly combines MTG and Yu-Gi-Oh! into a single unified report.
-*   **📈 Price History**: Automatically generates a line graph to visualize your total collection value over time.
-*   **🖼️ Visual Dashboard**: Generates a clean `index.html` report with high-res card art, current prices, and stats.
-*   **⭐️ Holo-Foil Effect**: Add `(Foil)` to card names to see a stunning interactive 3D holographic effect on the card in the report.
-*   **💰 Profit/Loss Calculator**: Input your buy price to see exactly how much you've made (or lost) on each card.
-*   **🚨 Discord Alerts**: Get automatic pings via Webhook when your collection value spikes beyond a threshold.
-*   **📊 Excel Export**: Auto-saves a detailed `MY_COLLECTION_PRICES.xlsx` spreadsheet for your records.
+## Quick Start
 
-## 🚀 Setup
+Requirements: Python 3.10 or newer.
 
-### 1. Prerequisites
-Ensure you have Python installed on your machine.
-
-### 2. Install Dependencies
-Run the following command in your terminal to install the required libraries:
-```bash
-pip install matplotlib openpyxl
+```powershell
+git clone https://github.com/jbright471/Trading-Card-Collection-Tracker.git
+cd Trading-Card-Collection-Tracker
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+New-Item -ItemType Directory -Force data
+Copy-Item examples\my_cards.example.txt data\my_cards.txt
+Copy-Item examples\wishlist.example.txt data\wishlist.txt
+$env:TCG_TRACKER_DATA_DIR = "$PWD\data"
+python app.py
 ```
 
-## 📖 Usage
+Open [http://localhost:8084](http://localhost:8084). Windows users can also run `Run Web App.bat` after installing the requirements.
 
-### 1. Add Your Cards
-Open the text files in the project folder and list your cards. You can simply list the name, or add a pipe `|` to track your purchase price.
+The dashboard works with an empty `data` folder, so copying the examples is optional.
 
-**mtg_cards.txt** or **ygo_cards.txt**:
+## Collection Format
+
+The recommended collection file is `data/my_cards.txt`. Lines without a game prefix are treated as MTG cards.
+
 ```text
-Blue-Eyes White Dragon
-Dark Magician | 5.00
-3x Pot of Greed
-Black Lotus (Foil)
+Lightning Bolt #150
+2x Sol Ring (Foil) | 1.50
+[YGO] Dark Magician
+[PKM] Pikachu #base1-58
 ```
-*   **Quantity**: Use `3x Name` to track multiple copies.
-*   **Buy Price**: Use `| 5.00` to track cost basis (optional).
-*   **Foil**: Add `(Foil)` to enable the visual holographic effect (optional).
 
-### 2. Configure Alerts (Optional)
-To receive notifications on Discord:
-1.  Open `price_tracker.py` in a text editor.
-2.  Find the variable `DISCORD_WEBHOOK_URL`.
-3.  Paste your Discord Webhook URL inside the quotes.
+Supported modifiers:
 
-### 3. Run the Tracker
-**Option A: The Easy Way (Recommended)**
-Simply double-click the `Run Price Tracker.bat` file in the folder. A window will open, run your update, and stay open so you can read the results.
+- `2x` sets quantity.
+- `(Foil)` or `(Etched)` sets finish.
+- `[LP]`, `[MP]`, or another condition follows the card name.
+- `| 1.50` records the per-card purchase price.
+- `[MTG]`, `[YGO]`, or `[PKM]` selects a game in the unified file.
 
-**Option B: Command Line**
-Execute the script from your terminal:
-```bash
+For compatibility, the web app also reads separate `mtg_cards.txt`, `ygo_cards.txt`, and `pkm_cards.txt` files when `my_cards.txt` does not exist.
+
+## Wishlist Format
+
+Create `data/wishlist.txt` with one target per line:
+
+```text
+Lightning Bolt #150 | < 2.00
+[YGO] Dark Magician | <= 10.00
+[PKM] Pikachu #base1-58 | < 20.00
+```
+
+Supported operators are `<`, `<=`, `>`, and `>=`. The dashboard refresh updates wishlist prices and card images along with the collection.
+
+## Docker And Portainer
+
+Create the local data directory, then start the stack:
+
+```powershell
+New-Item -ItemType Directory -Force data
+docker compose up -d --build
+```
+
+The stack publishes port `8084`, mounts `./data` at `/data`, and includes a health check. In Portainer, deploy `compose.yml` as a Git-backed stack or paste its contents into the web editor.
+
+Your Docker host must allow container user `1000` to write to the mounted `data` directory. See [docs/PORTAINER.md](docs/PORTAINER.md) for deployment and scheduling details.
+
+## Refresh Options
+
+The `Refresh Prices` button updates the web dashboard, collection history, and wishlist cache.
+
+The full scheduled refresh also creates the Excel and standalone HTML reports, per-card history, movers, and optional Discord alerts:
+
+```powershell
+$env:TCG_TRACKER_DATA_DIR = "$PWD\data"
 python price_tracker.py
 ```
 
-## 📂 Output Files
+For Docker:
 
-| File | Description |
-| :--- | :--- |
-| `index.html` | 🌟 **Start Here**. Your interactive visual report dashboard. |
-| `MY_COLLECTION_PRICES.xlsx` | Detailed spreadsheet of your entire collection. |
-| `price_history.csv` | Raw data log of value over time (used for the graph). |
-| `history_graph.png` | The generated image of your value graph. |
+```text
+docker exec tcg-tracker python price_tracker.py
+```
 
+Run that command from cron, Task Scheduler, or another scheduler at the interval you prefer. A daily run is usually enough for a personal collection.
 
-## 🛠️ Built With
-This project uses the following robust APIs:
-*   **Magic: The Gathering**: Scryfall API
-*   **Yu-Gi-Oh!**: YGOPRODeck API
+## Configuration
 
-## 🤖 Human-in-the-Loop Development
-This tool was developed using an iterative AI workflow leveraging Google Antigravity and Gemini.
+Copy `.env.example` to `.env` when using Docker Compose, or set the same values in your environment or Portainer stack.
 
-*   **AI Role**: Accelerated development by implementing data visualization (matplotlib), HTML report generation, and multi-game API integration.
-*   **Developer Role**: Directed feature roadmap, designed the Profit/Loss logic, and ensured the tool remains user-friendly and robust.
+Important settings:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TCG_TRACKER_DATA_DIR` | `.` | Location for collection and generated data. |
+| `DISCORD_WEBHOOK_URL` | empty | Enables optional Discord alerts. |
+| `REQUEST_DELAY` | `0.75` | Delay between card lookups. |
+| `SCRYFALL_MIN_INTERVAL_SECONDS` | `0.65` | Minimum spacing between Scryfall requests. |
+| `HTTP_MAX_RETRIES` | `4` | Retries for rate-limited requests. |
+| `WISHLIST_COOLDOWN_DAYS` | `7` | Days between repeat deal alerts. |
+| `HISTORY_RETENTION_DAYS` | `90` | Collection history retention window. |
+
+## Data Privacy
+
+Collection files, wishlist files, caches, exports, charts, and generated reports are ignored by Git. Only harmless example files are included in this repository. Docker also excludes local collection data from the image build context.
+
+Do not expose this app directly to the public internet. It is intended for a trusted local network or access through an authenticated reverse proxy or VPN.
+
+## Project Layout
+
+| Path | Purpose |
+| --- | --- |
+| `app.py` | Main Flask web application. |
+| `tcg_tracker/` | Dashboard storage, parsing, search, and refresh logic. |
+| `tcg/` | Scheduled report, history, wishlist, and notification pipeline. |
+| `templates/`, `static/` | Responsive dashboard and add-card interface. |
+| `examples/` | Safe starter collection and wishlist files. |
+| `tests/` | Offline unit and route tests. |
+| `Dockerfile`, `compose.yml` | Docker and Portainer deployment. |
+
+Price data comes from Scryfall, YGOPRODeck, and TCGdex. Availability and market coverage depend on those services.

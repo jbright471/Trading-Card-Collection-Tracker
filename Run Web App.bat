@@ -2,5 +2,5 @@
 cd /d "%~dp0"
 if not exist "%~dp0data" mkdir "%~dp0data"
 set "TCG_TRACKER_DATA_DIR=%~dp0data"
-python price_tracker.py
+python app.py
 pause

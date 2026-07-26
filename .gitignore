@@ -1,3 +1,26 @@
 __pycache__/
 *.pyc
-card_prices.csv
+.venv/
+.playwright-cli/
+.pytest_cache/
+data/
+.env
+*.log
+
+# Collection data and generated reports belong to each installation.
+/my_cards.txt
+/mtg_cards.txt
+/ygo_cards.txt
+/pkm_cards.txt
+/wishlist.txt
+/wishlist_alerted.json
+/wishlist_cache.json
+/collection_state.json
+/last_run_prices.json
+/last_run_data.json
+/card_price_history.json
+/price_history.csv
+/card_prices.csv
+/MY_COLLECTION_PRICES.xlsx
+/history_graph.png
+/index.html
