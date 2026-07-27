@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TCG Collection Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --surface2: #f8f9fa;
+            --border: #e2e6ea;
+            --text: #1a1d23;
+            --muted: #6b7280;
+            --accent: #2563eb;
+            --green: #16a34a;
+            --red: #dc2626;
+            --mtg: #d97706;
+            --ygo: #7c3aed;
+            --pkm: #dc2626;
+            --radius: 12px;
+            --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+        }
+
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        /* ── Nav ── */
+        nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 100; }
+        .nav-logo { font-weight: 700; font-size: 18px; letter-spacing: -.3px; }
+        .nav-links { display: flex; gap: 4px; }
+        .nav-links a { padding: 6px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; transition: all .15s; }
+        .nav-links a:hover { background: var(--bg); color: var(--text); }
+        .nav-links a.active { background: var(--accent); color: #fff; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-add-btn { background: var(--accent); color: #fff; border: none; padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: opacity .15s; }
+        .nav-add-btn:hover { opacity: .88; }
+
+        /* ── Layout ── */
+        .page { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
+        .main-row { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+
+        /* ── Value hero ── */
+        .hero-panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+        .hero-label { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+        .hero-value { font-size: 42px; font-weight: 800; letter-spacing: -1px; color: var(--text); }
+        .hero-delta { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 15px; font-weight: 600; }
+        .delta-up { color: var(--green); }
+        .delta-down { color: var(--red); }
+        .delta-neutral { color: var(--muted); }
+        .hero-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .hero-stats { display: flex; gap: 40px; }
+        .hero-stat { text-align: center; }
+        .hero-stat .val { font-size: 22px; font-weight: 700; }
+        .hero-stat .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+        /* ── Chart panel ── */
+        .chart-panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 24px; }
+        .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .chart-header h2 { font-size: 16px; font-weight: 700; }
+        .chart-range { display: flex; gap: 4px; }
+        .chart-range button { background: none; border: 1px solid var(--border); padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--muted); transition: all .15s; }
+        .chart-range button.active, .chart-range button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        #valueChart { height: 260px !important; }
+
+        /* ── Sidebar ── */
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .sidebar-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .sidebar-header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .sidebar-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot-green { background: var(--green); }
+        .dot-red { background: var(--red); }
+        .mover-list { padding: 8px 0; }
+        .mover-item { display: flex; align-items: center; gap: 12px; padding: 10px 18px; transition: background .12s; }
+        .mover-item:hover { background: var(--bg); }
+        .mover-thumb { width: 36px; height: 50px; object-fit: cover; border-radius: 4px; background: var(--border); flex-shrink: 0; }
+        .mover-info { flex: 1; min-width: 0; }
+        .mover-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mover-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+        .mover-pct { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+        .pct-up { color: var(--green); }
+        .pct-down { color: var(--red); }
+
+        /* ── Game sections ── */
+        .section { margin-bottom: 28px; }
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .section-title { font-size: 18px; font-weight: 700; }
+        .game-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; color: #fff; }
+        .game-badge-MTG { background: var(--mtg); }
+        .game-badge-YGO { background: var(--ygo); }
+        .game-badge-PKM { background: var(--pkm); }
+        .section-count { font-size: 13px; color: var(--muted); }
+
+        /* ── Card grid ── */
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; }
+        .card-tile { background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); transition: transform .18s, box-shadow .18s; position: relative; cursor: pointer; }
+        .card-tile:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+        .card-thumb { width: 100%; height: 220px; object-fit: contain; background: var(--surface2); display: block; }
+        .card-body { padding: 10px 12px; }
+        .card-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+        .card-set { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+        .card-price-row { display: flex; align-items: center; justify-content: space-between; }
+        .card-price-val { font-size: 15px; font-weight: 700; color: var(--accent); }
+        .card-qty-badge { font-size: 10px; color: var(--muted); background: var(--bg); padding: 2px 6px; border-radius: 10px; }
+        .card-trend { font-size: 11px; font-weight: 600; }
+        .trend-up { color: var(--green); }
+        .trend-down { color: var(--red); }
+        .card-pl { font-size: 11px; font-weight: 600; margin-top: 4px; }
+        .pl-green { color: var(--green); }
+        .pl-red { color: var(--red); }
+        .card-game-dot { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 12px; color: #fff; font-size: 10px; font-weight: 700; }
+
+        /* Foil shimmer */
+        .card-tile.foil::after {
+            content: "";
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 10px;
+            background: linear-gradient(105deg, transparent 20%, rgba(255,219,112,.45) 40%, rgba(255,255,255,.65) 50%, rgba(112,193,255,.45) 60%, transparent 80%);
+            mix-blend-mode: color-dodge;
+            opacity: 0;
+            transition: opacity .25s;
+            pointer-events: none;
+            background-position: var(--foil-x, 0%) var(--foil-y, 0%);
+            background-size: 200% 200%;
+        }
+        .card-tile.foil:hover::after { opacity: 1; }
+        @media (pointer: coarse) { .card-tile.foil::after { opacity: .5; } }
+
+        /* ── Wishlist ── */
+        .wishlist-section { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 28px; border-left: 4px solid var(--accent); }
+        .wishlist-section .section-header { margin-bottom: 16px; }
+        .wishlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; }
+        .wish-tile { background: var(--surface2); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); cursor: pointer; transition: transform .18s; }
+        .wish-tile:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+        .wish-tile.deal { border: 2px solid var(--green); animation: deal-pulse 2.5s ease-in-out infinite; }
+        .wish-tile.deal:hover { animation: none; box-shadow: 0 6px 18px rgba(22,163,74,.25); }
+        .wish-price { font-size: 20px; font-weight: 800; }
+        .wish-tile.deal .wish-price { color: var(--green); }
+        .wish-target { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .deal-badge { display: inline-block; background: var(--green); color: #fff; border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: 700; margin-top: 6px; }
+        @keyframes deal-pulse { 0%,100% { border-color: var(--green); box-shadow: none; } 50% { border-color: #22c55e; box-shadow: 0 0 12px rgba(22,163,74,.35); } }
+
+        /* ── Responsive ── */
+        @media (max-width: 1024px) { .main-row { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) { nav { padding: 0 16px; } .page { padding: 16px 12px; } .hero-value { font-size: 32px; } .hero-stats { gap: 20px; } }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="nav-logo">TCG Collection Tracker</span>
+    <div class="nav-links">
+        <a href="/" class="active">Dashboard</a>
+        <a href="/add">Add Card</a>
+    </div>
+    <div class="nav-right">
+        <a href="/add" class="nav-add-btn">+ Add Card</a>
+    </div>
+</nav>
+
+<div class="page">
+
+    <!-- Value hero -->
+    <div class="hero-panel">
+        <div>
+            <div class="hero-label">Total Collection Value</div>
+            <div class="hero-value">${{ '%.2f' | format(total_value) }}</div>
+            {% if dollar_delta is not none %}
+            <div class="hero-delta {% if dollar_delta >= 0 %}delta-up{% else %}delta-down{% endif %}">
+                {% if dollar_delta >= 0 %}↑{% else %}↓{% endif %}
+                ${{ '%.2f' | format(dollar_delta | abs) }}
+                ({{ '%+.2f' | format(pct_delta) }}%) today
+            </div>
+            {% endif %}
+            <div class="hero-meta">Last updated: {{ today }}</div>
+        </div>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="val" style="color: {{ pl_color }}">{{ pl_sign }}${{ '%.2f' | format(total_profit_loss) }}</div>
+                <div class="lbl">Total P/L</div>
+            </div>
+            <div class="hero-stat">
+                <div class="val">{{ items | length }}</div>
+                <div class="lbl">Cards</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-row">
+        <div>
+            <!-- Chart -->
+            <div class="chart-panel">
+                <div class="chart-header">
+                    <h2>Portfolio Value Over Time</h2>
+                    <div class="chart-range" id="rangeButtons">
+                        <button data-range="30">1M</button>
+                        <button data-range="90">3M</button>
+                        <button data-range="180" class="active">6M</button>
+                        <button data-range="365">1Y</button>
+                        <button data-range="0">All</button>
+                    </div>
+                </div>
+                <canvas id="valueChart"></canvas>
+            </div>
+
+            <!-- Wishlist -->
+            {% if deals %}
+            <div class="wishlist-section">
+                <div class="section-header">
+                    <span class="section-title">🎯 Wish List</span>
+                    <span class="section-count">{{ deals | length }} card{{ 's' if deals | length != 1 }}</span>
+                </div>
+                <div class="wishlist-grid">
+                    {% for d in deals %}
+                    <div class="wish-tile{% if d.is_deal %} deal{% endif %}" data-uri="{{ d.data.uri }}">
+                        <span class="card-game-dot game-badge-{{ d.data.game }}">{{ d.data.game }}</span>
+                        <img src="{{ d.data.image or placeholder_img }}" class="card-thumb" alt="{{ d.data.name }}">
+                        <div class="card-body">
+                            <div class="card-name" title="{{ d.data.name }}">{{ d.data.name }}</div>
+                            <div class="card-set">{{ d.data.set }}</div>
+                            <div class="wish-price">{% if d.current_price != 'N/A' %}${{ '%.2f' | format(d.current_price) }}{% else %}N/A{% endif %}</div>
+                            <div class="wish-target">Target: {{ d.operator }}${{ '%.2f' | format(d.target_price) }}</div>
+                            {% if d.is_deal %}<span class="deal-badge">DEAL · Save ${{ '%.2f' | format(d.savings) }}</span>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Cards by game -->
+            {% for game in game_order %}
+            {% set game_items = by_game[game] %}
+            <div class="section">
+                <div class="section-header">
+                    <span class="game-badge game-badge-{{ game }}">{{ game }}</span>
+                    <span class="section-title">
+                        {% if game == 'MTG' %}Magic: The Gathering
+                        {% elif game == 'YGO' %}Yu-Gi-Oh!
+                        {% elif game == 'PKM' %}Pokémon
+                        {% else %}{{ game }}{% endif %}
+                    </span>
+                    <span class="section-count">{{ game_items | length }} card{{ 's' if game_items | length != 1 }}</span>
+                </div>
+                <div class="card-grid">
+                    {% for item in game_items %}
+                    <div class="card-tile{% if item.is_foil %} foil{% endif %}" data-uri="{{ item.data.uri }}">
+                        <span class="card-game-dot game-badge-{{ item.data.game }}">{{ item.data.game }}</span>
+                        <img src="{{ item.data.image or placeholder_img }}" class="card-thumb" alt="{{ item.data.name }}" loading="lazy">
+                        <div class="card-body">
+                            <div class="card-name" title="{{ item.data.name }}">{{ item.data.name }}</div>
+                            <div class="card-set">{{ item.data.set }}</div>
+                            <div class="card-price-row">
+                                <span class="card-price-val">${{ item.price_str }}</span>
+                                {% if item.quantity > 1 %}<span class="card-qty-badge">×{{ item.quantity }}</span>{% endif %}
+                                {% if item.trend_diff is not none %}
+                                    {% if item.trend_diff > 0.001 %}<span class="card-trend trend-up">▲${{ '%.2f' | format(item.trend_diff) }}</span>
+                                    {% elif item.trend_diff < -0.001 %}<span class="card-trend trend-down">▼${{ '%.2f' | format(item.trend_diff | abs) }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% if item.profit_loss is not none %}
+                            <div class="card-pl {% if item.profit_loss >= 0 %}pl-green{% else %}pl-red{% endif %}">
+                                P/L: {% if item.profit_loss >= 0 %}+{% endif %}${{ '%.2f' | format(item.profit_loss) }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+        </div><!-- /main col -->
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            {% if gainers %}
+            <div class="sidebar-card">
+                <div class="sidebar-header"><span class="dot dot-green"></span> Top Gainers</div>
+                <div class="mover-list">
+                    {% for m in gainers %}
+                    <div class="mover-item">
+                        <img src="{{ m.image or placeholder_img }}" class="mover-thumb" alt="{{ m.name }}" loading="lazy">
+                        <div class="mover-info">
+                            <div class="mover-name">{{ m.name }}</div>
+                            <div class="mover-sub">{{ m.set }}</div>
+                        </div>
+                        <span class="mover-pct pct-up">↑{{ '%.1f' | format(m.pct) }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if losers %}
+            <div class="sidebar-card">
+                <div class="sidebar-header"><span class="dot dot-red"></span> Top Losers</div>
+                <div class="mover-list">
+                    {% for m in losers %}
+                    <div class="mover-item">
+                        <img src="{{ m.image or placeholder_img }}" class="mover-thumb" alt="{{ m.name }}" loading="lazy">
+                        <div class="mover-info">
+                            <div class="mover-name">{{ m.name }}</div>
+                            <div class="mover-sub">{{ m.set }}</div>
+                        </div>
+                        <span class="mover-pct pct-down">↓{{ '%.1f' | format(m.pct | abs) }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div><!-- /main-row -->
+</div><!-- /page -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+    // Delegated click → open card URI
+    document.addEventListener('click', e => {
+        const t = e.target.closest('[data-uri]');
+        if (t) window.open(t.dataset.uri, '_blank');
+    });
+
+    // Chart with range filtering
+    const ALL_DATES = {{ history_dates_json | safe }};
+    const ALL_VALUES = {{ history_values_json | safe }};
+    const MOVERS = {{ movers_json | safe }};
+
+    let chart;
+    function buildChart(days) {
+        let dates = ALL_DATES, values = ALL_VALUES;
+        if (days > 0 && dates.length > days) {
+            dates = dates.slice(-days);
+            values = values.slice(-days);
+        }
+        if (chart) chart.destroy();
+        const ctx = document.getElementById('valueChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    data: values,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37,99,235,.06)',
+                    pointRadius: dates.length > 60 ? 0 : 3,
+                    pointHoverRadius: 6,
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => '$' + ctx.parsed.y.toFixed(2),
+                            afterBody: ctx => {
+                                const d = ctx[0].label;
+                                const mv = MOVERS[d];
+                                if (!mv || !mv.length) return [];
+                                const lines = ['', '📊 Top Movers:'];
+                                mv.forEach(m => lines.push('  ' + m.name + ':  ' + m.delta));
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0 } },
+                    y: { ticks: { callback: v => '$' + v.toLocaleString() } }
+                }
+            }
+        });
+    }
+
+    if (ALL_DATES.length) {
+        buildChart(180);
+        document.getElementById('rangeButtons').addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            document.querySelectorAll('#rangeButtons button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            buildChart(parseInt(btn.dataset.range, 10));
+        });
+    }
+
+    // Foil tilt — desktop
+    document.querySelectorAll('.card-tile.foil').forEach(card => {
+        card.addEventListener('mousemove', e => {
+            const r = card.getBoundingClientRect();
+            const x = (e.clientX - r.left) / r.width;
+            const y = (e.clientY - r.top) / r.height;
+            card.style.setProperty('--foil-x', `${x * 100}%`);
+            card.style.setProperty('--foil-y', `${y * 100}%`);
+            card.style.transform = `translateY(-4px) rotateX(${(y - .5) * -18}deg) rotateY(${(x - .5) * 18}deg)`;
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = '';
+        });
+    });
+
+    // Foil tilt — mobile orientation
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', e => {
+            const tx = Math.max(-45, Math.min(45, e.gamma || 0));
+            const ty = Math.max(-45, Math.min(45, e.beta || 0));
+            const x = ((tx + 45) / 90) * 100;
+            const y = ((ty + 45) / 90) * 100;
+            document.querySelectorAll('.card-tile.foil').forEach(c => {
+                c.style.setProperty('--foil-x', `${x}%`);
+                c.style.setProperty('--foil-y', `${y}%`);
+            });
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Lines without a prefix are treated as MTG cards.
+Lightning Bolt #150
+2x Sol Ring (Foil) | 1.50
+[YGO] Dark Magician
+[PKM] Pikachu #base1-58

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · TCG Collection Tracker{% endblock %}
+{% block head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<section class="page-shell dashboard-page">
+  <section class="status-strip" data-state="{{ status.state }}">
+    <div>
+      <strong>
+        {% if status.state == "ok" %}Prices current{% elif status.state == "stale" %}Prices need refresh{% else %}No refresh yet{% endif %}
+      </strong>
+      <span>
+        {% if status.last_updated %}
+          Last updated {{ status.last_updated }}{% if status.days_old is not none %} · {{ status.days_old }} days old{% endif %}
+        {% else %}
+          Run a refresh to build the first hosted snapshot.
+        {% endif %}
+      </span>
+    </div>
+    <div class="status-actions">
+      {% if excel_available %}
+      <a class="button button-secondary" href="/download/excel">Download Excel</a>
+      {% endif %}
+      <button class="button button-secondary" id="refreshButton" type="button">Refresh Prices</button>
+    </div>
+  </section>
+
+  <section class="hero-panel">
+    <div class="hero-main">
+      <p class="eyebrow">Total collection value</p>
+      <h1>${{ "%.2f"|format(total_value) }}</h1>
+      <p class="muted">{{ priced_cards }} of {{ cards|length }} rows have current pricing.</p>
+    </div>
+    <div class="metric-row">
+      <div class="metric">
+        <span class="{{ 'positive' if profit_loss >= 0 else 'negative' }}">{{ "%+.2f"|format(profit_loss) }}</span>
+        <small>Total P/L</small>
+      </div>
+      <div class="metric">
+        <span>{{ card_count }}</span>
+        <small>Cards</small>
+      </div>
+      <div class="metric">
+        <span>{{ status.failure_count }}</span>
+        <small>Refresh issues</small>
+      </div>
+      <div class="metric">
+        <span>{{ status.wishlist_count }}</span>
+        <small>Wishlist</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-grid">
+    <section class="panel chart-panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Portfolio</p>
+          <h2>Value Over Time</h2>
+        </div>
+        <div class="segmented" role="group" aria-label="Chart range">
+          <button type="button" data-days="30">1M</button>
+          <button type="button" data-days="90">3M</button>
+          <button type="button" data-days="180" class="active">6M</button>
+          <button type="button" data-days="0">All</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="valueChart"></canvas>
+      </div>
+      <div class="portfolio-snapshot" aria-label="Portfolio snapshot">
+        <div class="snapshot-item">
+          <span>Since Previous</span>
+          {% if snapshot.trend %}
+            <strong class="{{ snapshot.trend.class }}">{{ "%+.2f"|format(snapshot.trend.value) }}</strong>
+            <small>{{ "%+.1f"|format(snapshot.trend.pct) }}% {{ snapshot.trend.label }}</small>
+          {% else %}
+            <strong>Pending</strong>
+            <small>Needs more history</small>
+          {% endif %}
+        </div>
+        <div class="snapshot-item">
+          <span>Top Holding</span>
+          {% if snapshot.top_card %}
+            <strong>${{ "%.2f"|format(snapshot.top_card.value) }}</strong>
+            <small>{{ snapshot.top_card.name }}</small>
+          {% else %}
+            <strong>N/A</strong>
+            <small>No priced cards yet</small>
+          {% endif %}
+        </div>
+        <div class="snapshot-item">
+          <span>Closest Target</span>
+          {% if snapshot.closest_wishlist %}
+            <strong class="{{ snapshot.closest_wishlist.class }}">${{ "%.2f"|format(snapshot.closest_wishlist.amount) }}</strong>
+            <small>{{ snapshot.closest_wishlist.label }} · {{ snapshot.closest_wishlist.name }}</small>
+          {% else %}
+            <strong>N/A</strong>
+            <small>No priced wishlist targets</small>
+          {% endif %}
+        </div>
+        <div class="snapshot-item">
+          <span>Data Freshness</span>
+          <strong>{{ snapshot.freshness }}</strong>
+          <small>{{ status.card_count }} priced rows watched</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel wishlist-panel">
+      <div class="panel-header wishlist-header">
+        <div>
+          <p class="eyebrow">Sniper list</p>
+          <h2>Wishlist Watch</h2>
+        </div>
+        {% if wishlist %}<span class="muted">{{ wishlist|length }} targets</span>{% endif %}
+      </div>
+      {% if wishlist %}
+      <div class="watch-list">
+        {% for item in wishlist %}
+        <a class="watch-card" href="{{ item.uri or '#' }}" target="_blank" rel="noopener">
+          <div class="watch-media">
+            {% if item.image %}
+              <img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">
+            {% else %}
+              <span>{{ item.game }}</span>
+            {% endif %}
+          </div>
+          <div>
+            <div class="watch-title-line">
+              <span class="badge badge-{{ item.game }}">{{ item.game }}</span>
+              {% if item.is_deal %}<span class="deal-pill">Deal</span>{% endif %}
+            </div>
+            <strong>{{ item.name }}</strong>
+            {% if item.set %}<small>{{ item.set }}</small>{% endif %}
+            <div class="watch-prices">
+              {% if item.current_price is number %}
+                <span>${{ "%.2f"|format(item.current_price) }}</span>
+              {% else %}
+                <span>N/A</span>
+              {% endif %}
+              {% if item.target %}<small>Target {{ item.target }}</small>{% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <ul class="action-list">
+        <li>Add wishlist targets to start tracking deals.</li>
+        <li>Refresh prices after adding cards.</li>
+        <li>Add buy price for better P/L tracking.</li>
+      </ul>
+      {% endif %}
+    </section>
+  </section>
+
+  <section class="panel collection-panel">
+    <div class="panel-header collection-header">
+      <div>
+        <p class="eyebrow">Collection</p>
+        <h2>Tracked Cards</h2>
+      </div>
+      <div class="toolbar">
+        <input id="collectionSearch" class="input" type="search" placeholder="Search collection">
+        <select id="gameFilter" class="input" aria-label="Filter by game">
+          <option value="all">All games</option>
+          <option value="MTG">MTG</option>
+          <option value="YGO">YGO</option>
+          <option value="PKM">Pokemon</option>
+        </select>
+        <select id="sortCards" class="input" aria-label="Sort cards">
+          <option value="value">Value</option>
+          <option value="name">Name</option>
+          <option value="game">Game</option>
+          <option value="unpriced">Unpriced first</option>
+        </select>
+      </div>
+    </div>
+
+    {% if cards %}
+    <div class="card-list" id="cardList">
+      {% for card in cards %}
+      <article class="card-row"
+        data-name="{{ card.name|lower }}"
+        data-game="{{ card.game }}"
+        data-value="{{ card.value or 0 }}"
+        data-priced="{{ 'yes' if card.value is not none else 'no' }}">
+        <a class="card-image-link" href="{{ card.uri or '#' }}" target="_blank" rel="noopener">
+          {% if card.image %}
+            <img src="{{ card.image }}" alt="{{ card.name }}" loading="lazy">
+          {% else %}
+            <span class="image-placeholder">{{ card.game }}</span>
+          {% endif %}
+        </a>
+        <div class="card-copy">
+          <div class="card-title-line">
+            <h3>{{ card.name }}</h3>
+            <span class="badge badge-{{ card.game }}">{{ card.game }}</span>
+          </div>
+          <p>{{ card.set or "Set unknown" }} · {{ card.finish|title }}{% if card.condition %} · {{ card.condition }}{% endif %} · x{{ card.quantity or 1 }}</p>
+          <div class="card-values">
+            <strong>{% if card.value is not none %}${{ "%.2f"|format(card.value) }}{% else %}N/A{% endif %}</strong>
+            {% if card.profit_loss is not none %}
+              <small class="{{ 'positive' if card.profit_loss >= 0 else 'negative' }}">P/L {{ "%+.2f"|format(card.profit_loss) }}</small>
+            {% elif card.stale %}
+              <small>Needs refresh</small>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h3>No cards yet</h3>
+      <p>Add your first card, then refresh prices to build the dashboard.</p>
+      <a class="button" href="/add">Add Card</a>
+    </div>
+    {% endif %}
+  </section>
+</section>
+<script id="historyData" type="application/json">{{ history|tojson }}</script>
+{% endblock %}

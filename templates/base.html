@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TCG Collection Tracker{% endblock %}</title>
+  <script>
+    (() => {
+      const stored = localStorage.getItem("tcg-theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="{{ url_for('static', filename='theme.js') }}" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="app-nav">
+    <a class="brand" href="/">TCG Collection Tracker</a>
+    <div class="nav-right">
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Dashboard</a>
+        <a href="/add" class="{{ 'active' if request.path == '/add' else '' }}">Add Card</a>
+      </nav>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch color theme" aria-pressed="false">
+        <span class="theme-toggle-track" aria-hidden="true"><span class="theme-toggle-thumb"></span></span>
+        <span class="theme-toggle-label">Light</span>
+      </button>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
