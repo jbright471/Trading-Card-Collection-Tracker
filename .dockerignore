@@ -14,7 +14,11 @@ pkm_cards.txt
 wishlist.txt
 wishlist_alerted.json
 wishlist_cache.json
+wishlist_settings.json
 collection_state.json
+transactions.json
+notification_history.json
+refresh_status.json
 last_run_prices.json
 last_run_data.json
 card_price_history.json
@@ -23,3 +27,4 @@ card_prices.csv
 *.xlsx
 history_graph.png
 index.html
+backups
