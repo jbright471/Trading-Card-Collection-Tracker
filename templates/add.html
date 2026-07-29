@@ -55,9 +55,18 @@
           <input class="input" id="quantityInput" type="number" min="1" value="1">
         </label>
       </div>
-      <button class="button sticky-submit" type="submit" id="submitAdd">Add to Collection</button>
+      <div class="add-actions">
+        <button class="button sticky-submit" type="submit" id="submitAdd">Add to Collection</button>
+        <button class="button button-secondary" type="button" id="watchSelected">Watch Price</button>
+      </div>
+      <div class="quick-wishlist" id="quickWishlist" hidden>
+        <div class="form-grid">
+          <label>Target direction<select class="input" id="quickOperator"><option value="<">Below</option><option value="<=">At or below</option><option value=">">Above</option><option value=">=">At or above</option></select></label>
+          <label>Target price<input class="input" id="quickTarget" type="number" min="0" step="0.01" required></label>
+        </div>
+        <button class="button" type="button" id="saveQuickWishlist">Save Target</button>
+      </div>
     </form>
   </aside>
 </section>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
 {% endblock %}

@@ -28,6 +28,8 @@ cp examples/wishlist.example.txt data/wishlist.txt
 
 You can also start empty and add collection cards from the web interface.
 
+The app creates rotating daily ZIP backups under `data/backups`. These are inside the persistent volume and survive container rebuilds.
+
 ## Health Check
 
 Portainer should report the container as healthy after this endpoint responds:
@@ -52,7 +54,7 @@ Pull the latest repository revision and redeploy the stack with a fresh build. T
 
 ## Backup
 
-Back up the stack's `data` directory. It contains the collection, wishlist, history, alert cooldown state, caches, and generated exports.
+Use **Data > Import & Backup** to download a portable ZIP, or back up the entire stack `data` directory. Restoring from the UI creates a pre-restore backup before replacing matching files.
 
 ## Rollback
 
@@ -60,4 +62,4 @@ Keep the previous image or stack revision available. If a new deployment does no
 
 ## Network Safety
 
-This app has collection-changing endpoints and no built-in user accounts. Keep it on a trusted network, behind a VPN, or behind an authenticated reverse proxy. Do not publish port `8084` directly to the internet.
+Set `TCG_TRACKER_PIN` in the Portainer stack to require a PIN for collection-changing actions and private downloads. Set `TCG_TRACKER_SECRET_KEY` to a long random value so sessions remain stable across redeployments. Keep the app on a trusted network, behind a VPN, or behind an authenticated reverse proxy. Do not publish port `8084` directly to the internet.

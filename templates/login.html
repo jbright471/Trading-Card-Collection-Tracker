@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Unlock · TCG Collection Tracker{% endblock %}
+{% block content %}
+<section class="login-shell">
+  <form method="post" class="panel login-panel">
+    <p class="eyebrow">Private tracker</p>
+    <h1>Unlock Collection</h1>
+    <p class="muted">Enter the tracker PIN to manage cards and private data.</p>
+    {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+    <label class="field-label">PIN
+      <input class="input" type="password" inputmode="numeric" name="pin" autocomplete="current-password" autofocus required>
+    </label>
+    <button class="button" type="submit">Unlock</button>
+  </form>
+</section>
+{% endblock %}

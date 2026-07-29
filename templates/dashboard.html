@@ -7,22 +7,24 @@
 {% block content %}
 <section class="page-shell dashboard-page">
   <section class="status-strip" data-state="{{ status.state }}">
-    <div>
+    <div class="status-copy">
       <strong>
-        {% if status.state == "ok" %}Prices current{% elif status.state == "stale" %}Prices need refresh{% else %}No refresh yet{% endif %}
+        {% if status.state == "ok" and not status.stale_count %}Prices current{% elif status.state == "stale" %}Prices need refresh{% else %}Some prices need attention{% endif %}
       </strong>
-      <span>
+      <span id="refreshMessage">
         {% if status.last_updated %}
           Last updated {{ status.last_updated }}{% if status.days_old is not none %} · {{ status.days_old }} days old{% endif %}
+          {% if status.stale_count %} · {{ status.stale_count }} using last-known prices{% endif %}
         {% else %}
           Run a refresh to build the first hosted snapshot.
         {% endif %}
       </span>
+      <div class="refresh-progress" id="refreshProgress" hidden>
+        <span id="refreshProgressBar"></span>
+      </div>
     </div>
     <div class="status-actions">
-      {% if excel_available %}
-      <a class="button button-secondary" href="/download/excel">Download Excel</a>
-      {% endif %}
+      {% if excel_available %}<a class="button button-secondary" href="/download/excel">Download Excel</a>{% endif %}
       <button class="button button-secondary" id="refreshButton" type="button">Refresh Prices</button>
     </div>
   </section>
@@ -30,36 +32,25 @@
   <section class="hero-panel">
     <div class="hero-main">
       <p class="eyebrow">Total collection value</p>
-      <h1>${{ "%.2f"|format(total_value) }}</h1>
-      <p class="muted">{{ priced_cards }} of {{ cards|length }} rows have current pricing.</p>
+      <h1>{{ total_value|money }}</h1>
+      <p class="muted">{{ priced_cards }} of {{ cards|length }} tracked rows have a valuation.</p>
+      {% for currency, value in portfolio.foreign_totals.items() %}<p class="foreign-total">Plus {{ value|money(currency) }} priced separately</p>{% endfor %}
     </div>
     <div class="metric-row">
       <div class="metric">
-        <span class="{{ 'positive' if profit_loss >= 0 else 'negative' }}">{{ "%+.2f"|format(profit_loss) }}</span>
-        <small>Total P/L</small>
+        <span class="{{ 'positive' if profit_loss >= 0 else 'negative' }}">{{ profit_loss|money }}</span>
+        <small>Unrealized P/L</small>
       </div>
-      <div class="metric">
-        <span>{{ card_count }}</span>
-        <small>Cards</small>
-      </div>
-      <div class="metric">
-        <span>{{ status.failure_count }}</span>
-        <small>Refresh issues</small>
-      </div>
-      <div class="metric">
-        <span>{{ status.wishlist_count }}</span>
-        <small>Wishlist</small>
-      </div>
+      <div class="metric"><span>{{ card_count }}</span><small>Cards</small></div>
+      <div class="metric"><span>{{ transaction_summary.realized_profit|money }}</span><small>Realized P/L</small></div>
+      <div class="metric"><span>{{ wishlist|length }}</span><small>Wishlist</small></div>
     </div>
   </section>
 
   <section class="content-grid">
     <section class="panel chart-panel">
       <div class="panel-header">
-        <div>
-          <p class="eyebrow">Portfolio</p>
-          <h2>Value Over Time</h2>
-        </div>
+        <div><p class="eyebrow">Portfolio</p><h2>Value Over Time</h2></div>
         <div class="segmented" role="group" aria-label="Chart range">
           <button type="button" data-days="30">1M</button>
           <button type="button" data-days="90">3M</button>
@@ -67,160 +58,164 @@
           <button type="button" data-days="0">All</button>
         </div>
       </div>
-      <div class="chart-wrap">
-        <canvas id="valueChart"></canvas>
-      </div>
+      <div class="chart-wrap"><canvas id="valueChart"></canvas></div>
       <div class="portfolio-snapshot" aria-label="Portfolio snapshot">
         <div class="snapshot-item">
           <span>Since Previous</span>
           {% if snapshot.trend %}
-            <strong class="{{ snapshot.trend.class }}">{{ "%+.2f"|format(snapshot.trend.value) }}</strong>
+            <strong class="{{ snapshot.trend.class }}">{{ "$%+.2f"|format(snapshot.trend.value) }}</strong>
             <small>{{ "%+.1f"|format(snapshot.trend.pct) }}% {{ snapshot.trend.label }}</small>
-          {% else %}
-            <strong>Pending</strong>
-            <small>Needs more history</small>
-          {% endif %}
+          {% else %}<strong>Pending</strong><small>Needs more history</small>{% endif %}
         </div>
         <div class="snapshot-item">
           <span>Top Holding</span>
-          {% if snapshot.top_card %}
-            <strong>${{ "%.2f"|format(snapshot.top_card.value) }}</strong>
-            <small>{{ snapshot.top_card.name }}</small>
-          {% else %}
-            <strong>N/A</strong>
-            <small>No priced cards yet</small>
-          {% endif %}
+          {% if snapshot.top_card %}<strong>{{ snapshot.top_card.value|money }}</strong><small>{{ snapshot.top_card.name }}</small>
+          {% else %}<strong>N/A</strong><small>No priced cards yet</small>{% endif %}
         </div>
         <div class="snapshot-item">
           <span>Closest Target</span>
-          {% if snapshot.closest_wishlist %}
-            <strong class="{{ snapshot.closest_wishlist.class }}">${{ "%.2f"|format(snapshot.closest_wishlist.amount) }}</strong>
-            <small>{{ snapshot.closest_wishlist.label }} · {{ snapshot.closest_wishlist.name }}</small>
-          {% else %}
-            <strong>N/A</strong>
-            <small>No priced wishlist targets</small>
-          {% endif %}
+          {% if snapshot.closest_wishlist %}<strong class="{{ snapshot.closest_wishlist.class }}">{{ snapshot.closest_wishlist.amount|money }}</strong><small>{{ snapshot.closest_wishlist.label }} · {{ snapshot.closest_wishlist.name }}</small>
+          {% else %}<strong>N/A</strong><small>No priced wishlist targets</small>{% endif %}
         </div>
-        <div class="snapshot-item">
-          <span>Data Freshness</span>
-          <strong>{{ snapshot.freshness }}</strong>
-          <small>{{ status.card_count }} priced rows watched</small>
-        </div>
+        <div class="snapshot-item"><span>Data Freshness</span><strong>{{ snapshot.freshness }}</strong><small>{{ status.card_count }} rows watched</small></div>
+      </div>
+    </section>
+
+    <section class="panel insights-panel">
+      <div class="panel-header">
+        <div><p class="eyebrow">What changed</p><h2>Portfolio Insights</h2></div>
+        <a class="text-link" href="/data">Open data health</a>
+      </div>
+      <div class="insights-grid">
+        <section class="insight-column">
+          <h3>Top Movers</h3>
+          {% set mover_rows = movers.gainers + movers.losers %}
+          {% if mover_rows %}
+          <div class="mover-list">
+            {% for item in movers.gainers[:2] %}
+            <button class="mover-row" type="button" data-open-card="{{ item.card_id }}">
+              <span><strong>{{ item.name }}</strong><small>{{ item.game }}</small></span>
+              <span class="positive">+{{ "%.1f"|format(item.pct) }}%</span>
+            </button>
+            {% endfor %}
+            {% for item in movers.losers[:2] %}
+            <button class="mover-row" type="button" data-open-card="{{ item.card_id }}">
+              <span><strong>{{ item.name }}</strong><small>{{ item.game }}</small></span>
+              <span class="negative">{{ "%.1f"|format(item.pct) }}%</span>
+            </button>
+            {% endfor %}
+          </div>
+          {% else %}<p class="muted">Two successful refresh days will unlock per-card movers.</p>{% endif %}
+        </section>
+        <section class="insight-column">
+          <h3>Value by Game</h3>
+          <div class="allocation-list">
+            {% for row in portfolio.dimensions.game %}
+            <div class="allocation-row">
+              <div><span class="badge badge-{{ row.label }}">{{ row.label }}</span><strong>{{ row.value|money }}</strong><small>{{ row.cards }} cards</small></div>
+              <div class="allocation-track"><span style="width: {{ row.pct }}%"></span></div>
+              <span>{{ "%.1f"|format(row.pct) }}%</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% if portfolio.top_three_pct >= 60 %}<p class="concentration-note">Your top three cards hold {{ portfolio.top_three_pct }}% of collection value.</p>{% endif %}
+        </section>
       </div>
     </section>
 
     <section class="panel wishlist-panel">
       <div class="panel-header wishlist-header">
-        <div>
-          <p class="eyebrow">Sniper list</p>
-          <h2>Wishlist Watch</h2>
+        <div><p class="eyebrow">Sniper list</p><h2>Wishlist Watch</h2></div>
+        <div class="header-actions">
+          {% if wishlist %}<span class="muted">{{ wishlist|length }} targets</span>{% endif %}
+          <button class="button button-secondary" id="addWishlistButton" type="button">Add Target</button>
         </div>
-        {% if wishlist %}<span class="muted">{{ wishlist|length }} targets</span>{% endif %}
       </div>
       {% if wishlist %}
       <div class="watch-list">
         {% for item in wishlist %}
-        <a class="watch-card" href="{{ item.uri or '#' }}" target="_blank" rel="noopener">
-          <div class="watch-media">
-            {% if item.image %}
-              <img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">
-            {% else %}
-              <span>{{ item.game }}</span>
-            {% endif %}
-          </div>
-          <div>
+        <article class="watch-card" data-wishlist-id="{{ item.wishlist_id }}">
+          <a class="watch-media" href="{{ item.uri or '#' }}" target="_blank" rel="noopener" aria-label="Open {{ item.name }} market page">
+            {% if item.image %}<img src="{{ item.image }}" alt="{{ item.name }}" loading="lazy">{% else %}<span>{{ item.game }}</span>{% endif %}
+          </a>
+          <div class="watch-copy">
             <div class="watch-title-line">
               <span class="badge badge-{{ item.game }}">{{ item.game }}</span>
-              {% if item.is_deal %}<span class="deal-pill">Deal</span>{% endif %}
+              {% if item.is_deal %}<span class="deal-pill">Deal · Target hit</span>{% endif %}
+              {% if not item.alert_enabled %}<span class="muted-pill">Muted</span>{% endif %}
             </div>
             <strong>{{ item.name }}</strong>
             {% if item.set %}<small>{{ item.set }}</small>{% endif %}
             <div class="watch-prices">
-              {% if item.current_price is number %}
-                <span>${{ "%.2f"|format(item.current_price) }}</span>
-              {% else %}
-                <span>N/A</span>
-              {% endif %}
-              {% if item.target %}<small>Target {{ item.target }}</small>{% endif %}
+              <span>{{ item.current_price|money(item.currency) }}</span>
+              <small>Target {{ item.target }}</small>
             </div>
+            {% if item.progress is not none %}<div class="target-track" aria-label="{{ item.progress }} percent to target"><span style="width: {{ item.progress }}%"></span></div>{% endif %}
+            <button class="text-button edit-wishlist" type="button" data-wishlist='{{ item|tojson }}'>Edit target</button>
           </div>
-        </a>
+        </article>
         {% endfor %}
       </div>
       {% else %}
-      <ul class="action-list">
-        <li>Add wishlist targets to start tracking deals.</li>
-        <li>Refresh prices after adding cards.</li>
-        <li>Add buy price for better P/L tracking.</li>
-      </ul>
+      <div class="empty-state"><h3>No wishlist targets</h3><p>Add a price target to start watching for deals.</p><button class="button" type="button" id="emptyWishlistButton">Add Target</button></div>
       {% endif %}
     </section>
   </section>
 
   <section class="panel collection-panel">
     <div class="panel-header collection-header">
-      <div>
-        <p class="eyebrow">Collection</p>
-        <h2>Tracked Cards</h2>
-      </div>
+      <div><p class="eyebrow">Collection</p><h2>Tracked Cards</h2></div>
       <div class="toolbar">
-        <input id="collectionSearch" class="input" type="search" placeholder="Search collection">
-        <select id="gameFilter" class="input" aria-label="Filter by game">
-          <option value="all">All games</option>
-          <option value="MTG">MTG</option>
-          <option value="YGO">YGO</option>
-          <option value="PKM">Pokemon</option>
-        </select>
-        <select id="sortCards" class="input" aria-label="Sort cards">
-          <option value="value">Value</option>
-          <option value="name">Name</option>
-          <option value="game">Game</option>
-          <option value="unpriced">Unpriced first</option>
-        </select>
+        <input id="collectionSearch" class="input" type="search" placeholder="Search collection" aria-label="Search collection">
+        <select id="gameFilter" class="input" aria-label="Filter by game"><option value="all">All games</option><option value="MTG">MTG</option><option value="YGO">YGO</option><option value="PKM">Pokemon</option></select>
+        <select id="sortCards" class="input" aria-label="Sort cards"><option value="value">Value</option><option value="name">Name</option><option value="game">Game</option><option value="profit">Profit</option><option value="unpriced">Unpriced first</option></select>
       </div>
     </div>
-
     {% if cards %}
     <div class="card-list" id="cardList">
       {% for card in cards %}
-      <article class="card-row"
-        data-name="{{ card.name|lower }}"
-        data-game="{{ card.game }}"
-        data-value="{{ card.value or 0 }}"
-        data-priced="{{ 'yes' if card.value is not none else 'no' }}">
-        <a class="card-image-link" href="{{ card.uri or '#' }}" target="_blank" rel="noopener">
-          {% if card.image %}
-            <img src="{{ card.image }}" alt="{{ card.name }}" loading="lazy">
-          {% else %}
-            <span class="image-placeholder">{{ card.game }}</span>
-          {% endif %}
-        </a>
-        <div class="card-copy">
-          <div class="card-title-line">
-            <h3>{{ card.name }}</h3>
-            <span class="badge badge-{{ card.game }}">{{ card.game }}</span>
-          </div>
-          <p>{{ card.set or "Set unknown" }} · {{ card.finish|title }}{% if card.condition %} · {{ card.condition }}{% endif %} · x{{ card.quantity or 1 }}</p>
-          <div class="card-values">
-            <strong>{% if card.value is not none %}${{ "%.2f"|format(card.value) }}{% else %}N/A{% endif %}</strong>
-            {% if card.profit_loss is not none %}
-              <small class="{{ 'positive' if card.profit_loss >= 0 else 'negative' }}">P/L {{ "%+.2f"|format(card.profit_loss) }}</small>
-            {% elif card.stale %}
-              <small>Needs refresh</small>
-            {% endif %}
-          </div>
-        </div>
-      </article>
+      <button class="card-row card-open" type="button" data-card-id="{{ card.card_id }}" data-name="{{ card.name|lower }}" data-game="{{ card.game }}" data-value="{{ card.value or 0 }}" data-profit="{{ card.profit_loss or 0 }}" data-priced="{{ 'yes' if card.value is not none else 'no' }}">
+        <span class="card-image-link">{% if card.image %}<img src="{{ card.image }}" alt="{{ card.name }}" loading="lazy">{% else %}<span class="image-placeholder">{{ card.game }}</span>{% endif %}</span>
+        <span class="card-copy">
+          <span class="card-title-line"><strong>{{ card.name }}</strong><span class="badge badge-{{ card.game }}">{{ card.game }}</span>{% if card.stale %}<span class="muted-pill">Stale</span>{% endif %}</span>
+          <span class="card-meta">{{ card.set or "Set unknown" }} · {{ card.finish|title }} · {{ card.condition }} · x{{ card.quantity or 1 }}</span>
+          <span class="card-values">
+            <strong>{{ card.value|money(card.currency) }}</strong>
+            {% if card.profit_loss is not none %}<small class="{{ 'positive' if card.profit_loss >= 0 else 'negative' }}">P/L {{ card.profit_loss|money(card.currency) }}</small>{% elif card.stale %}<small>Using last-known data</small>{% endif %}
+          </span>
+          <small class="price-source">{{ card.source or "Needs first refresh" }}{% if card.price_as_of %} · {{ card.price_as_of }}{% endif %}</small>
+        </span>
+      </button>
       {% endfor %}
     </div>
     {% else %}
-    <div class="empty-state">
-      <h3>No cards yet</h3>
-      <p>Add your first card, then refresh prices to build the dashboard.</p>
-      <a class="button" href="/add">Add Card</a>
-    </div>
+    <div class="empty-state"><h3>No cards yet</h3><p>Add your first card, then refresh prices to build the dashboard.</p><a class="button" href="/add">Add Card</a></div>
     {% endif %}
   </section>
 </section>
+
+<dialog class="drawer" id="cardDialog" aria-labelledby="cardDialogTitle">
+  <div class="dialog-shell">
+    <button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Close card details" title="Close">&times;</button>
+    <div id="cardDialogContent" class="drawer-content"><p class="muted">Loading card details...</p></div>
+  </div>
+</dialog>
+
+<dialog class="modal" id="wishlistDialog" aria-labelledby="wishlistDialogTitle">
+  <form class="dialog-shell form-stack" id="wishlistForm">
+    <button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Close wishlist editor" title="Close">&times;</button>
+    <div><p class="eyebrow">Price target</p><h2 id="wishlistDialogTitle">Add Wishlist Target</h2></div>
+    <input type="hidden" id="wishlistId">
+    <label class="field-label">Game<select class="input" id="wishlistGame"><option value="MTG">Magic: The Gathering</option><option value="YGO">Yu-Gi-Oh!</option><option value="PKM">Pokemon</option></select></label>
+    <label class="field-label">Card name or ID<input class="input" id="wishlistCardLine" required></label>
+    <div class="form-grid">
+      <label class="field-label">Target direction<select class="input" id="wishlistOperator"><option value="<">Below</option><option value="<=">At or below</option><option value=">">Above</option><option value=">=">At or above</option></select></label>
+      <label class="field-label">Target price<input class="input" id="wishlistTarget" type="number" min="0" step="0.01" required></label>
+    </div>
+    <label class="toggle-field"><input id="wishlistAlert" type="checkbox" checked><span>Discord alerts enabled</span></label>
+    <div class="dialog-actions"><button class="button" type="submit">Save Target</button><button class="button button-danger" id="deleteWishlistButton" type="button" hidden>Delete</button></div>
+  </form>
+</dialog>
+
 <script id="historyData" type="application/json">{{ history|tojson }}</script>
 {% endblock %}

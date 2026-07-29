@@ -52,3 +52,13 @@ def send_deal_alert(deals):
         print(f"Deal alert sent for {len(alertable)} card(s).")
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as e:
         print(f"Failed to send deal alert: {e}")
+
+
+def send_test_alert():
+    if not DISCORD_WEBHOOK_URL:
+        return False, "Discord webhook is not configured"
+    try:
+        _post("TCG Collection Tracker test notification: alerts are connected.")
+        return True, "Discord test notification sent"
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+        return False, f"Discord test failed: {exc}"

@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 import unittest
@@ -208,6 +209,106 @@ class AppRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn("Target &lt;= $2.00", body)
+
+    def test_data_page_renders_health_and_import_tools(self):
+        response = self.client.get("/data")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("Data &amp; Activity", body)
+        self.assertIn("Preview Import", body)
+        self.assertIn("Download Backup", body)
+
+    def test_card_detail_update_and_delete_routes(self):
+        added = self.client.post(
+            "/api/add-card", json={"game": "MTG", "card_line": "Lightning Bolt #150"}
+        ).get_json()
+
+        detail = self.client.get(f"/api/cards/{added['card_id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.get_json()["editable_name"], "Lightning Bolt #150")
+
+        updated = self.client.patch(
+            f"/api/cards/{added['card_id']}", json={"quantity": 2, "condition": "LP"}
+        )
+        self.assertEqual(updated.status_code, 200)
+        new_id = updated.get_json()["card_id"]
+        self.assertIn("2x Lightning Bolt #150 [LP]", (self.data_dir / "mtg_cards.txt").read_text())
+
+        removed = self.client.delete(f"/api/cards/{new_id}")
+        self.assertEqual(removed.status_code, 200)
+
+    def test_wishlist_management_routes(self):
+        added = self.client.post(
+            "/api/wishlist",
+            json={"game": "YGO", "card_line": "Dark Magician", "operator": "<", "target_price": 12},
+        )
+        self.assertEqual(added.status_code, 200)
+        wishlist_id = added.get_json()["wishlist_id"]
+
+        updated = self.client.patch(
+            f"/api/wishlist/{wishlist_id}", json={"target_price": 10, "alert_enabled": False}
+        )
+        self.assertEqual(updated.status_code, 200)
+
+        removed = self.client.delete(f"/api/wishlist/{updated.get_json()['wishlist_id']}")
+        self.assertEqual(removed.status_code, 200)
+
+    def test_csv_preview_and_backup_download(self):
+        preview = self.client.post(
+            "/api/import/preview",
+            data={
+                "file": (
+                    io.BytesIO(b"Game,Card Name,Quantity\nMTG,Lightning Bolt,2\n"),
+                    "cards.csv",
+                )
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.get_json()["valid"], 1)
+
+        self.client.post(
+            "/api/add-card", json={"game": "MTG", "card_line": "Lightning Bolt"}
+        )
+        backup = self.client.get("/download/backup")
+        self.assertEqual(backup.status_code, 200)
+        self.assertEqual(backup.mimetype, "application/zip")
+
+
+class AccessPinTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app = create_app(
+            {
+                "TESTING": True,
+                "DATA_DIR": Path(self.tmp.name),
+                "DISABLE_NETWORK": True,
+                "ACCESS_PIN": "2468",
+            }
+        )
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_pin_protects_mutations_and_private_downloads(self):
+        locked = self.client.post(
+            "/api/add-card", json={"game": "MTG", "card_line": "Lightning Bolt"}
+        )
+        self.assertEqual(locked.status_code, 401)
+        self.assertEqual(self.client.get("/download/backup").status_code, 401)
+
+        login = self.client.post("/login", data={"pin": "2468"})
+        self.assertEqual(login.status_code, 302)
+        with self.client.session_transaction() as session_data:
+            csrf = session_data["csrf_token"]
+        added = self.client.post(
+            "/api/add-card",
+            json={"game": "MTG", "card_line": "Lightning Bolt"},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(added.status_code, 200)
 
 
 if __name__ == "__main__":

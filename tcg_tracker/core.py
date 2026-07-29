@@ -1,5 +1,8 @@
 import csv
+import hashlib
 import html
+import io
+import os
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -9,6 +12,15 @@ FINISH_LABELS = {
     "regular": "",
     "foil": "Foil",
     "etched": "Etched",
+}
+
+CONDITION_MULTIPLIERS = {
+    "M": 1.05,
+    "NM": 1.0,
+    "LP": 0.85,
+    "MP": 0.70,
+    "HP": 0.50,
+    "DMG": 0.30,
 }
 
 
@@ -75,6 +87,18 @@ def build_card_line(card_line, quantity=1, finish="regular", buy_price="", condi
     return line
 
 
+def card_identity(game, raw_line):
+    normalized = f"{str(game or '').upper()}|{' '.join(str(raw_line or '').lower().split())}"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
+
+def adjusted_price(price, condition="NM"):
+    if price in (None, "", "N/A"):
+        return None
+    multiplier = CONDITION_MULTIPLIERS.get(str(condition or "NM").upper(), 1.0)
+    return round(float(price) * multiplier, 2)
+
+
 def _split_buy_price(line):
     if "|" not in line:
         return line, None
@@ -130,7 +154,7 @@ def update_history(
     today=None,
     failed_cards=0,
     total_cards=0,
-    max_failure_rate=0.2,
+    max_failure_rate=0.0,
 ):
     history_path = Path(history_path)
     today = today or date.today()
@@ -174,5 +198,8 @@ def _read_history_rows(history_path):
 
 def _write_history_rows(history_path, rows):
     history_path.parent.mkdir(parents=True, exist_ok=True)
-    with history_path.open("w", newline="", encoding="utf-8") as file:
-        csv.writer(file).writerows(rows)
+    buffer = io.StringIO(newline="")
+    csv.writer(buffer, lineterminator="\n").writerows(rows)
+    temp_path = history_path.with_suffix(history_path.suffix + ".tmp")
+    temp_path.write_bytes(buffer.getvalue().encode("utf-8"))
+    os.replace(temp_path, history_path)

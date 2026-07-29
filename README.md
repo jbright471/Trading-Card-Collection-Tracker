@@ -1,6 +1,6 @@
 # Multi TCG Tracker
 
-A self-hosted collection and price tracker for Magic: The Gathering, Yu-Gi-Oh!, and Pokemon cards. It includes a responsive light/dark dashboard, card images, portfolio history, wishlist targets, and a searchable add-card workflow.
+A self-hosted collection and price tracker for Magic: The Gathering, Yu-Gi-Oh!, and Pokemon cards. It includes a responsive light/dark dashboard, collection management, portfolio analytics, wishlist targets, transactions, imports, and backups.
 
 ## Features
 
@@ -8,10 +8,16 @@ A self-hosted collection and price tracker for Magic: The Gathering, Yu-Gi-Oh!, 
 - View collection value, profit/loss, data freshness, and price history.
 - Browse a responsive card gallery with card art, set, finish, condition, quantity, and value.
 - Search supported card databases and add cards from the web interface.
-- Watch wishlist targets with current prices, card images, and deal indicators.
-- Refresh from the dashboard with API pacing, retry, and rate-limit backoff.
+- Open any card for a larger image, per-card history, source details, editing, sales, or archival.
+- Watch and manage wishlist targets with current prices, progress, alert controls, and deal indicators.
+- Record purchases, partial or complete sales, fees, shipping, and realized profit/loss.
+- Review daily movers, value allocation, concentration, provider failures, and suspicious history points.
+- Preview and import common collection CSV exports without replacing existing cards.
+- Download portable backups, restore safely, and keep rotating daily backups in `data/backups`.
+- Refresh in the background with progress, API pacing, retry, rate-limit backoff, and a cross-process lock.
 - Keep last-known values when individual lookups fail.
-- Skip bad history snapshots when too many lookups fail.
+- Skip portfolio-history writes whenever a provider lookup fails.
+- Track price source, currency, finish, freshness, and transparent condition-adjusted estimates.
 - Generate an Excel export and a standalone HTML report.
 - Track per-card history, daily movers, gainers, and losers.
 - Send optional Discord value and wishlist deal alerts.
@@ -57,6 +63,8 @@ Supported modifiers:
 - `| 1.50` records the per-card purchase price.
 - `[MTG]`, `[YGO]`, or `[PKM]` selects a game in the unified file.
 
+Condition valuations are estimates based on the provider market price: M 105%, NM 100%, LP 85%, MP 70%, HP 50%, and damaged 30%. The card detail drawer shows both the provider market price and the adjusted estimate.
+
 For compatibility, the web app also reads separate `mtg_cards.txt`, `ygo_cards.txt`, and `pkm_cards.txt` files when `my_cards.txt` does not exist.
 
 ## Wishlist Format
@@ -69,7 +77,24 @@ Lightning Bolt #150 | < 2.00
 [PKM] Pikachu #base1-58 | < 20.00
 ```
 
-Supported operators are `<`, `<=`, `>`, and `>=`. The dashboard refresh updates wishlist prices and card images along with the collection.
+Supported operators are `<`, `<=`, `>`, and `>=`. Targets can also be added, edited, muted, and removed from the dashboard.
+
+## Collection Management
+
+Select any tracked card to open its detail drawer. From there you can:
+
+- Edit quantity, condition, finish, name/ID, and purchase price.
+- Review per-card price history and provider metadata.
+- Record a partial or complete sale with fees and shipping.
+- Archive a card without recording a sale or permanently delete it.
+
+Sales and purchases appear under **Data > Activity**. Realized and unrealized profit remain separate.
+
+## Import And Backup
+
+The **Data > Import & Backup** view previews CSV rows before importing them. It recognizes common headings such as card name, product line, collector number, quantity, printing, condition, and price paid.
+
+The backup ZIP contains collection and wishlist files, histories, transactions, caches, and preferences. It does not contain environment variables, webhook URLs, PINs, or other secrets. A daily rotating backup is also written under the mounted `data/backups` directory.
 
 ## Docker And Portainer
 
@@ -118,12 +143,14 @@ Important settings:
 | `HTTP_MAX_RETRIES` | `4` | Retries for rate-limited requests. |
 | `WISHLIST_COOLDOWN_DAYS` | `7` | Days between repeat deal alerts. |
 | `HISTORY_RETENTION_DAYS` | `90` | Collection history retention window. |
+| `TCG_TRACKER_PIN` | empty | Optional PIN required for collection-changing actions and private downloads. |
+| `TCG_TRACKER_SECRET_KEY` | derived locally | Stable session key; set a long random value when using a PIN with multiple containers. |
 
 ## Data Privacy
 
 Collection files, wishlist files, caches, exports, charts, and generated reports are ignored by Git. Only harmless example files are included in this repository. Docker also excludes local collection data from the image build context.
 
-Do not expose this app directly to the public internet. It is intended for a trusted local network or access through an authenticated reverse proxy or VPN.
+An optional PIN protects collection-changing actions and private downloads. It is still best to keep the app on a trusted local network or access it through an authenticated reverse proxy or VPN; do not publish it directly to the internet.
 
 ## Project Layout
 
@@ -132,7 +159,7 @@ Do not expose this app directly to the public internet. It is intended for a tru
 | `app.py` | Main Flask web application. |
 | `tcg_tracker/` | Dashboard storage, parsing, search, and refresh logic. |
 | `tcg/` | Scheduled report, history, wishlist, and notification pipeline. |
-| `templates/`, `static/` | Responsive dashboard and add-card interface. |
+| `templates/`, `static/` | Responsive dashboard, card manager, data tools, and add-card interface. |
 | `examples/` | Safe starter collection and wishlist files. |
 | `tests/` | Offline unit and route tests. |
 | `Dockerfile`, `compose.yml` | Docker and Portainer deployment. |

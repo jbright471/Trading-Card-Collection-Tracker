@@ -82,7 +82,11 @@ def process_file(filename, default_game='MTG', last_run_prices=None, last_run_da
         card_key = f"{game_name}|{card}"
         attempted_keys.add(card_key)
 
-        data = fetch_func(clean_card_line)
+        data = (
+            get_mtg_data(clean_card_line, is_foil=is_foil)
+            if game_name == 'MTG'
+            else fetch_func(clean_card_line)
+        )
         if data:
             unit_price_str = data['price']
             total_price_str = unit_price_str

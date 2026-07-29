@@ -8,7 +8,10 @@ from tcg.http import get_json
 
 
 # --- Magic: The Gathering (Scryfall) ---
-def get_mtg_data(card_line):
+def get_mtg_data(card_line, is_foil=None):
+    finish = "etched" if "etched" in card_line.lower() else (
+        "foil" if is_foil or re.search(r"\([^)]*foil[^)]*\)", card_line, re.IGNORECASE) else "regular"
+    )
     match = re.search(r'^(.*?)\s+#\s*(\S+)$', card_line)
     queries = []
     clean_name = card_line
@@ -39,7 +42,7 @@ def get_mtg_data(card_line):
         try:
             data = get_json(url)
             if data.get('total_cards', 0) > 0:
-                return _parse_scryfall(data['data'][0], clean_name)
+                return _parse_scryfall(data['data'][0], clean_name, finish)
         except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError):
             continue
 
@@ -47,15 +50,16 @@ def get_mtg_data(card_line):
     try:
         fuzzy_name = re.sub(r'\s*#\s*\d+', '', clean_name).strip()
         url = f"https://api.scryfall.com/cards/named?fuzzy={urllib.parse.quote(fuzzy_name)}"
-        return _parse_scryfall(get_json(url), clean_name)
+        return _parse_scryfall(get_json(url), clean_name, finish)
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError) as e:
         print(f"[MTG] Error fetching {card_line}: {e}")
         return None
 
 
-def _parse_scryfall(data, default_name):
+def _parse_scryfall(data, default_name, finish="regular"):
     prices = data.get('prices', {})
-    price = prices.get('usd') or prices.get('usd_foil') or prices.get('usd_etched') or 'N/A'
+    price_key = {'regular': 'usd', 'foil': 'usd_foil', 'etched': 'usd_etched'}.get(finish, 'usd')
+    price = prices.get(price_key) or prices.get('usd') or prices.get('usd_foil') or prices.get('usd_etched') or 'N/A'
 
     name = data.get('flavor_name') or data.get('name') or default_name
 

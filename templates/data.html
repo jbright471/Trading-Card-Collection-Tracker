@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Data · TCG Collection Tracker{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='data.js') }}" defer></script>{% endblock %}
+{% block content %}
+<section class="page-shell data-page">
+  <header class="page-heading">
+    <div><p class="eyebrow">Collection operations</p><h1>Data &amp; Activity</h1><p class="muted">Sales, refresh health, history repair, imports, and protected backups.</p></div>
+    <div class="segmented data-tabs" role="tablist" aria-label="Data views">
+      <button class="active" type="button" role="tab" data-tab="activity">Activity</button>
+      <button type="button" role="tab" data-tab="health">Health</button>
+      <button type="button" role="tab" data-tab="transfer">Import &amp; Backup</button>
+    </div>
+  </header>
+
+  <section class="hero-panel compact-hero">
+    <div class="metric-row data-metrics">
+      <div class="metric"><span>{{ transaction_summary.realized_profit|money }}</span><small>Realized P/L</small></div>
+      <div class="metric"><span>{{ transaction_summary.sales_net|money }}</span><small>Net sales</small></div>
+      <div class="metric"><span>{{ health.stale_cards|length }}</span><small>Stale prices</small></div>
+      <div class="metric"><span>{{ health.anomalies|length }}</span><small>History flags</small></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-tab-panel="activity">
+    <section class="panel">
+      <div class="panel-header"><div><p class="eyebrow">Ledger</p><h2>Transactions</h2></div><button class="button button-secondary" id="addTransactionButton" type="button">Record Entry</button></div>
+      {% if transactions %}
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Card</th><th>Qty</th><th>Net</th><th>Realized P/L</th></tr></thead>
+          <tbody>
+            {% for item in transactions %}
+            <tr><td>{{ item.created_at[:10] }}</td><td><span class="type-pill type-{{ item.type }}">{{ item.type|title }}</span></td><td><strong>{{ item.name or "Manual entry" }}</strong>{% if item.notes %}<small>{{ item.notes }}</small>{% endif %}</td><td>{{ item.quantity or 1 }}</td><td>{{ (item.net_amount if item.net_amount is defined else item.total_amount)|money }}</td><td class="{{ 'positive' if (item.realized_profit or 0) >= 0 else 'negative' }}">{{ item.realized_profit|money }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="empty-state"><h3>No activity yet</h3><p>Sales and purchases recorded from card details will appear here.</p></div>{% endif %}
+    </section>
+
+    <section class="panel activity-panel">
+      <div class="panel-header"><div><p class="eyebrow">Alerts</p><h2>Notification History</h2></div><button class="button button-secondary" id="testDiscordButton" type="button">Test Discord</button></div>
+      {% if notifications %}<div class="timeline-list">{% for item in notifications %}<article><span class="timeline-dot"></span><div><strong>{{ item.title }}</strong><p>{{ item.message }}</p><small>{{ item.created_at[:16]|replace('T', ' ') }}</small></div></article>{% endfor %}</div>
+      {% else %}<p class="muted">Wishlist hits and notification tests will appear here.</p>{% endif %}
+    </section>
+  </section>
+
+  <section class="tab-panel" data-tab-panel="health" hidden>
+    <section class="panel">
+      <div class="panel-header"><div><p class="eyebrow">Pricing providers</p><h2>Data Health</h2></div><span class="status-badge status-{{ health.refresh.state or 'idle' }}">{{ (health.refresh.state or 'idle')|title }}</span></div>
+      <div class="health-grid">
+        <section><h3>Price Sources</h3><div class="definition-list">{% for source, count in health.sources.items() %}<div><span>{{ source }}</span><strong>{{ count }}</strong></div>{% endfor %}</div></section>
+        <section><h3>Currencies</h3><div class="definition-list">{% for currency, count in health.currencies.items() %}<div><span>{{ currency }}</span><strong>{{ count }}</strong></div>{% endfor %}</div></section>
+        <section><h3>Latest Refresh</h3><div class="definition-list"><div><span>Status</span><strong>{{ health.refresh.state or "Idle" }}</strong></div><div><span>Progress</span><strong>{{ health.refresh.current or 0 }} / {{ health.refresh.total or 0 }}</strong></div></div></section>
+      </div>
+    </section>
+
+    <section class="split-panels">
+      <section class="panel"><div class="panel-header"><div><p class="eyebrow">Attention</p><h2>Stale or Unpriced</h2></div><span class="muted">{{ health.attention_cards|length }} rows</span></div>
+        {% if health.attention_cards %}<div class="compact-list">{% for card in health.attention_cards %}<a class="health-card-link" href="/?card={{ card.card_id }}"><span><strong>{{ card.name }}</strong><small>{{ card.game }} · {{ card.last_error or "Needs refresh" }}</small></span><span>{{ card.value|money(card.currency) }}</span></a>{% endfor %}</div>{% else %}<p class="positive">All tracked cards have current pricing.</p>{% endif %}
+      </section>
+      <section class="panel"><div class="panel-header"><div><p class="eyebrow">Last refresh</p><h2>Provider Failures</h2></div><span class="muted">{{ health.failures|length }} issues</span></div>
+        {% if health.failures %}<div class="compact-list plain">{% for item in health.failures %}<div><span><strong>{{ item.name }}</strong><small>{{ item.game }}</small></span><small>{{ item.error }}</small></div>{% endfor %}</div>{% else %}<p class="positive">No provider failures in the latest refresh.</p>{% endif %}
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><div><p class="eyebrow">History repair</p><h2>Suspicious Portfolio Points</h2></div><span class="muted">Large moves are flagged, never changed automatically.</span></div>
+      {% if health.anomalies %}<div class="history-flags">{% for item in health.anomalies %}<article data-history-day="{{ item.date }}"><div><strong>{{ item.date }}</strong><span>{{ item.value|money }}</span><small>{{ "%+.1f"|format(item.change_pct) }}% from previous point</small></div><div class="row-actions"><button class="button button-secondary edit-history" type="button" data-value="{{ item.value }}">Correct</button><button class="button button-danger remove-history" type="button">Exclude</button></div></article>{% endfor %}</div>
+      {% else %}<p class="muted">No unusually large portfolio-history changes were detected.</p>{% endif %}
+    </section>
+  </section>
+
+  <section class="tab-panel" data-tab-panel="transfer" hidden>
+    <section class="split-panels transfer-grid">
+      <section class="panel">
+        <div class="panel-header"><div><p class="eyebrow">CSV</p><h2>Import Collection</h2></div></div>
+        <p class="muted">Supports common headings from Collectr, ManaBox, TCGplayer exports, and generic spreadsheets. You review rows before anything is added.</p>
+        <form class="form-stack" id="importForm"><label class="file-drop" for="importFile"><strong>Choose collection CSV</strong><span>Up to 5 MB</span><input id="importFile" type="file" accept=".csv,text/csv" required></label><button class="button" type="submit">Preview Import</button></form>
+        <div id="importPreview"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><div><p class="eyebrow">Portable data</p><h2>Backup &amp; Restore</h2></div></div>
+        <p class="muted">Backups contain collection files, wishlist targets, histories, transactions, and preferences. Secrets and environment settings are excluded.</p>
+        <div class="button-row"><a class="button" href="/download/backup">Download Backup</a></div>
+        <form class="form-stack restore-form" id="restoreForm"><label class="file-drop" for="restoreFile"><strong>Choose backup ZIP</strong><span>A pre-restore backup is created automatically</span><input id="restoreFile" type="file" accept=".zip,application/zip" required></label><button class="button button-secondary" type="submit">Restore Backup</button></form>
+        {% if backups %}<div class="backup-list"><h3>Automatic Backups</h3>{% for backup in backups %}<div><span><strong>{{ backup.name }}</strong><small>{{ backup.modified|replace('T', ' ') }}</small></span><span>{{ backup.size_kb }} KB</span></div>{% endfor %}</div>{% endif %}
+      </section>
+    </section>
+  </section>
+</section>
+
+<dialog class="modal" id="transactionDialog" aria-labelledby="transactionDialogTitle">
+  <form class="dialog-shell form-stack" id="transactionForm">
+    <button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Close transaction editor" title="Close">&times;</button>
+    <div><p class="eyebrow">Ledger</p><h2 id="transactionDialogTitle">Record Entry</h2></div>
+    <div class="form-grid"><label class="field-label">Type<select class="input" id="transactionType"><option value="purchase">Purchase</option><option value="sale">Sale</option><option value="adjustment">Adjustment</option></select></label><label class="field-label">Game<select class="input" id="transactionGame"><option value="MTG">MTG</option><option value="YGO">YGO</option><option value="PKM">Pokemon</option></select></label></div>
+    <label class="field-label">Card or description<input class="input" id="transactionName" required></label>
+    <div class="form-grid"><label class="field-label">Quantity<input class="input" id="transactionQuantity" type="number" min="1" value="1"></label><label class="field-label">Total amount<input class="input" id="transactionAmount" type="number" step="0.01" required></label></div>
+    <label class="field-label">Notes<input class="input" id="transactionNotes" maxlength="300"></label>
+    <button class="button" type="submit">Save Entry</button>
+  </form>
+</dialog>
+{% endblock %}
